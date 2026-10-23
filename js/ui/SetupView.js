@@ -11,6 +11,10 @@ export class SetupView extends View {
     return `<div class="card"><b>ซิงค์ข้ามเครื่อง</b><div class="mute">ล็อกอินเพื่อให้พอร์ตตามคุณไปทุกเครื่อง ข้อมูลของแต่ละคนแยกกัน</div>
 <div class="grid2" style="margin-top:10px"><button class="p" data-act="login" data-p="github">GitHub</button><button data-act="login" data-p="google">Google</button></div></div>`;
   }
+  quoteLine(a) {
+    const q = a.symbol && this.app.prices.quotes[a.symbol.toUpperCase()];
+    return q ? `<div class="mute" style="margin-top:4px">ราคาล่าสุด ${q.price} ${q.currency}${q.name ? " · " + esc(q.name) : ""}</div>` : "";
+  }
   render() {
     const p = this.p, s = p.targetSum(), ok = Math.abs(s - 100) < 0.01;
     const cats = sel => Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}"${sel === k ? " selected" : ""}>${v}</option>`).join("");
@@ -19,11 +23,11 @@ export class SetupView extends View {
 <div class="card row"><span>เป้าหมายรวม</span><b class="${ok ? "up" : "warn"}">${+s.toFixed(2)}%${ok ? " ✓" : " (ต้องเท่ากับ 100)"}</b></div>
 ${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.id.toUpperCase())}</b><button class="s d" data-act="delAsset" data-id="${esc(a.id)}">ลบ</button></div>
 <label>ชื่อ</label><input value="${esc(a.name)}" data-chg="field" data-f="name" data-id="${esc(a.id)}">
-<label>สัญลักษณ์ราคา (Yahoo Finance เช่น VOO, TISCO.BK ว่างไว้ถ้ากรอกราคาเอง)</label><input value="${esc(a.symbol || "")}" data-chg="field" data-f="symbol" data-id="${esc(a.id)}">
+<label>สัญลักษณ์ราคา (Yahoo Finance เช่น VOO, TISCO.BK ว่างไว้ถ้ากรอกราคาเอง)</label><input value="${esc(a.symbol || "")}" data-chg="field" data-f="symbol" data-id="${esc(a.id)}">${this.quoteLine(a)}
 <div class="grid2"><div><label>หมวด</label><select data-chg="field" data-f="category" data-id="${esc(a.id)}">${cats(a.category)}</select></div>
 <div><label>เป้า (%)</label><input type="number" inputmode="decimal" value="${a.target}" data-chg="field" data-f="target" data-id="${esc(a.id)}"></div></div></div>`).join("")}
 <h2>เพิ่มสินทรัพย์</h2><div class="card"><div class="grid2"><div><label style="margin-top:0">ตัวย่อ (เช่น QQQM)</label><input id="n_id"></div><div><label style="margin-top:0">เป้า (%)</label><input type="number" inputmode="decimal" id="n_t"></div></div>
-<label>ชื่อเต็ม</label><input id="n_n"><label>สัญลักษณ์ราคา (ถ้ามี)</label><input id="n_s"><label>หมวด</label><select id="n_c">${cats("")}</select>
+<label>ชื่อเต็ม</label><input id="n_n"><label>สัญลักษณ์ราคา (ถ้ามี)</label><input id="n_s" data-chg="newSymbol"><div id="n_hint" class="mute" style="margin-top:4px"></div><label>หมวด</label><select id="n_c">${cats("")}</select>
 <p><button class="p" style="width:100%" data-act="addAsset">เพิ่ม</button></p></div>
 <h2>สำรองข้อมูล</h2><div class="card"><div class="mute">ข้อมูลเก็บในเครื่องนี้ (และซิงค์ถ้าล็อกอิน) ใช้ย้ายเครื่องแบบไม่ล็อกอินได้ด้วย</div>
 <label>ข้อมูล (คัดลอก หรือวางเพื่อนำเข้า)</label><textarea id="bk" rows="4"></textarea>
@@ -55,12 +59,13 @@ ${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.id.toUpperCas
   }
   change(name, el) {
     const p = this.p;
+    if (name === "newSymbol") this.app.lookupNewSymbol(el.value.trim().toUpperCase());
     if (name === "band") { p.band = Math.max(0, +el.value || 0); this.app.commit(); }
     if (name === "field") {
       const a = p.asset(el.dataset.id), f = el.dataset.f;
       a[f] = f === "target" ? +el.value || 0 : f === "symbol" ? el.value.trim().toUpperCase() : el.value;
       this.app.commit();
-      if (f === "symbol") this.app.refreshPrices();
+      if (f === "symbol") this.app.lookupSymbol(a);
     }
   }
 }

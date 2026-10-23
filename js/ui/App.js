@@ -32,6 +32,23 @@ export class App {
     const typing = document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
     if (force || !typing) this.render();
   }
+  async lookupSymbol(asset) {
+    const sym = (asset.symbol || "").toUpperCase();
+    if (!sym) return this.commit();
+    await this.prices.refresh([sym]);
+    const q = this.prices.quotes[sym];
+    if (q && q.name && (!asset.name || asset.name === asset.id.toUpperCase())) asset.name = q.name;
+    this.commit();
+  }
+  async lookupNewSymbol(sym) {
+    const hint = this.root.querySelector("#n_hint"), nameEl = this.root.querySelector("#n_n");
+    if (!sym) { if (hint) hint.textContent = ""; return; }
+    if (hint) hint.textContent = "กำลังค้นหา...";
+    await this.prices.refresh([sym]);
+    const q = this.prices.quotes[sym];
+    if (q && q.name && nameEl && !nameEl.value) nameEl.value = q.name;
+    if (hint) hint.textContent = q ? `ราคาล่าสุด ${q.price} ${q.currency}` : "ดึงข้อมูลไม่ได้ (ทดสอบบน Vercel เท่านั้น หรือสัญลักษณ์ไม่ถูกต้อง)";
+  }
   render() {
     const y = scrollY;
     this.root.innerHTML = this.view.render();
