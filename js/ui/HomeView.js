@@ -22,11 +22,11 @@ ${banner}
 <div class="row mute" style="margin:0 0 12px"><span>${at ? "ราคาสดอัปเดต " + new Date(at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "ราคาสด: ยังไม่เชื่อม (กรอกเอง)"}</span><button class="s" data-act="refresh">รีเฟรชราคา</button></div>
 <div class="card"><div class="donutwrap"><div><div class="r1" style="background:${this.grad(cur)}"><div class="r2" style="background:${this.grad(tgt)}"><div class="hole"></div></div></div>
 <div class="mute" style="text-align:center;margin-top:6px">วงนอก = ตอนนี้ · วงใน = เป้า</div></div>
-<div class="legend">${p.assets.map((a, i) => `<div><span class="dot" style="background:${COLORS[i % 8]}"></span><span>${esc(a.id.toUpperCase())}</span></div>`).join("")}</div></div></div>
+<div class="legend">${p.assets.map((a, i) => `<div><span class="dot" style="background:${COLORS[i % 8]}"></span><span>${esc(a.label)}</span></div>`).join("")}</div></div></div>
 <h2>แต่ละสินทรัพย์</h2>
 ${p.assets.map(a => {
   const cp = p.share(a), st = e.status(cp - a.target);
-  return `<div class="card"><div class="row"><div><b>${esc(a.id.toUpperCase())}</b> <span class="mute">${esc(a.name)}</span></div><span class="tag" style="color:${st.color}">${st.label}</span></div>
+  return `<div class="card"><div class="row"><div><b>${esc(a.label)}</b> <span class="mute">${esc(a.name)}</span></div><span class="tag" style="color:${st.color}">${st.label}</span></div>
 <div class="bar"><i style="width:${Math.min(100, cp)}%;background:${st.color}"></i><b style="left:${Math.min(100, a.target)}%"></b></div>
 <div class="row mute"><span>ตอนนี้ ${cp.toFixed(1)}% · เป้า ${a.target}%</span><span>ต้นทุน ${fmt(p.cost(a))}</span></div>
 ${p.isLive(a)

@@ -39,6 +39,16 @@ export class Portfolio {
 
   addAsset(a) { this.assets.push(a); }
   removeAsset(id) { this.tx = this.tx.filter(t => t.asset_id !== id); this.assets = this.assets.filter(a => a.id !== id); }
+  // เปลี่ยนหุ้นในช่องเดิม (คงเป้า % และหมวด) migrate=true ย้ายประวัติมาด้วยแต่ล้างจำนวนหน่วย เพราะคำนวณจากหุ้นตัวเก่า
+  replaceAsset(oldId, next, migrate) {
+    const i = this.assets.findIndex(a => a.id === oldId);
+    if (i < 0) return;
+    if (migrate) {
+      this.tx.forEach(t => { if (t.asset_id === oldId) { t.asset_id = next.id; t.units = null; t.price_per_unit = null; } });
+      next.value = this.assets[i].value;
+    } else this.tx = this.tx.filter(t => t.asset_id !== oldId);
+    this.assets[i] = next;
+  }
   buy(assetId, amount, date, units, price) {
     const a = this.asset(assetId), lp = a && this.livePrice(a);
     if (!units && lp) { units = amount / lp; price = lp; }   // คำนวณหน่วยจากราคาสดให้อัตโนมัติ

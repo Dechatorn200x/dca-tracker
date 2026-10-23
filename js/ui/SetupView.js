@@ -21,7 +21,7 @@ export class SetupView extends View {
     return `<h1>จัดการพอร์ต</h1>${this.account()}
 <div class="card"><label style="margin-top:0">ช่วงยอมรับ (± % จากเป้า) ถ้าอยู่ในช่วงนี้ไม่ต้องปรับ</label><input type="number" inputmode="decimal" value="${p.band}" data-chg="band"></div>
 <div class="card row"><span>เป้าหมายรวม</span><b class="${ok ? "up" : "warn"}">${+s.toFixed(2)}%${ok ? " ✓" : " (ต้องเท่ากับ 100)"}</b></div>
-${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.id.toUpperCase())}</b><button class="s d" data-act="delAsset" data-id="${esc(a.id)}">ลบ</button></div>
+${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.label)}</b><span><button class="s" data-act="swap" data-id="${esc(a.id)}">เปลี่ยนหุ้น</button> <button class="s d" data-act="delAsset" data-id="${esc(a.id)}">ลบ</button></span></div>
 <label>ชื่อ</label><input value="${esc(a.name)}" data-chg="field" data-f="name" data-id="${esc(a.id)}">
 <label>สัญลักษณ์ราคา (Yahoo Finance เช่น VOO, TISCO.BK ว่างไว้ถ้ากรอกราคาเอง)</label><input value="${esc(a.symbol || "")}" data-chg="field" data-f="symbol" data-id="${esc(a.id)}">${this.quoteLine(a)}
 <div class="grid2"><div><label>หมวด</label><select data-chg="field" data-f="category" data-id="${esc(a.id)}">${cats(a.category)}</select></div>
@@ -36,9 +36,10 @@ ${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.id.toUpperCas
   }
   act(name, el) {
     const app = this.app, p = this.p, q = s => app.root.querySelector(s);
+    if (name === "swap") return this.swap(el.dataset.id);
     if (name === "login") app.sync.login(el.dataset.p);
     if (name === "logout") app.sync.logout();
-    if (name === "delAsset" && confirm(`ลบ ${el.dataset.id.toUpperCase()} และประวัติการซื้อของตัวนี้?`)) { p.removeAsset(el.dataset.id); app.commit(); }
+    if (name === "delAsset" && confirm(`ลบ ${this.p.asset(el.dataset.id).label} และประวัติการซื้อของตัวนี้?`)) { p.removeAsset(el.dataset.id); app.commit(); }
     if (name === "addAsset") {
       const id = q("#n_id").value.trim().toLowerCase().replace(/[^a-z0-9ก-๙]/g, "");
       if (!id) return alert("ใส่ตัวย่อสินทรัพย์");
@@ -56,6 +57,24 @@ ${p.assets.map(a => `<div class="card"><div class="row"><b>${esc(a.id.toUpperCas
       } catch { alert("ข้อมูลไม่ถูกต้อง วางข้อมูลสำรองที่คัดลอกไว้"); }
     }
     if (name === "reset" && confirm("ล้างข้อมูลทั้งหมดและเริ่มใหม่?")) { app.setPortfolio(Portfolio.createDefault()); app.commit(); }
+  }
+  async swap(id) {
+    const app = this.app, p = this.p, old = p.asset(id);
+    const sym = (prompt(`เปลี่ยน ${old.label} เป็นหุ้นตัวไหน? ใส่สัญลักษณ์ (เช่น QQQM, TISCO.BK)`) || "").trim().toUpperCase();
+    if (!sym) return;
+    const nid = sym.replace(/\.BK$/i, "").toLowerCase().replace(/[^a-z0-9ก-๙]/g, "");
+    if (!nid) return alert("สัญลักษณ์ไม่ถูกต้อง");
+    if (nid === id) return alert("เป็นตัวเดิมอยู่แล้ว แก้ที่ช่องสัญลักษณ์ได้เลย");
+    if (p.asset(nid)) return alert(`มี ${sym} ในพอร์ตอยู่แล้ว`);
+    await app.prices.refresh([sym]);
+    const name = app.prices.quotes[sym]?.name || sym, n = p.txOf(old).length;
+    let migrate = false;
+    if (n) {
+      migrate = confirm(`ย้ายประวัติการซื้อเดิมของ ${old.label} (${n} รายการ) มาที่ ${sym} ด้วยไหม?\n\nOK = ย้ายมา (เช่น ใส่หุ้นผิดตัว) ยอดเงินติดมา แต่จำนวนหน่วยจะถูกล้าง\nCancel = ไม่ย้าย`);
+      if (!migrate && !confirm(`ถ้าไม่ย้าย ประวัติการซื้อของ ${old.label} จะถูกลบ ยืนยันไหม?`)) return;
+    }
+    p.replaceAsset(id, new Asset({ id: nid, name, category: old.category, target: old.target, symbol: sym }), migrate);
+    app.commit(); app.refreshPrices();
   }
   change(name, el) {
     const p = this.p;
