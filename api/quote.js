@@ -7,9 +7,9 @@ module.exports = async function (req, res) {
     try {
       const r = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/" + encodeURIComponent(s) + "?range=1d&interval=1d", { headers: { "User-Agent": "Mozilla/5.0" } });
       const m = (await r.json()).chart.result[0].meta;
-      out[s.toUpperCase()] = { price: m.regularMarketPrice, currency: m.currency, name: m.longName || m.shortName || "" };
+      out[s.toUpperCase()] = { price: m.regularMarketPrice, currency: m.currency, name: m.longName || m.shortName || "", time: m.regularMarketTime };
     } catch (e) {}
   }));
-  res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+  res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
   res.status(200).json(out);
 };

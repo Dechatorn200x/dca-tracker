@@ -22,6 +22,8 @@ export class App {
     this.root.addEventListener("change", e => { const el = e.target.closest("[data-chg]"); if (el) this.view.change(el.dataset.chg, el); });
     this.nav.addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) { this.tab = b.dataset.tab; this.render(); scrollTo(0, 0); } });
     this.render(); this.refreshPrices(); this.sync.init();
+    setInterval(() => { if (!document.hidden) this.refreshPrices(); }, 5 * 60 * 1000);   // อัปเดตราคาเองทุก 5 นาทีตอนเปิดหน้าอยู่
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - (this.prices.updatedAt || 0) > 2 * 60 * 1000) this.refreshPrices(); });
   }
   setPortfolio(p) { p.prices = this.prices; this.portfolio = p; }
   replacePortfolio(data) { this.setPortfolio(Portfolio.fromJSON(data)); this.storage.save(this.portfolio); this.render(); this.refreshPrices(); }

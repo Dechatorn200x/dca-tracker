@@ -16,7 +16,7 @@ export class Portfolio {
     return new Portfolio({ assets: [
       { id: "voo", name: "Vanguard S&P 500 ETF", category: "US_Core", target: 50, symbol: "VOO" },
       { id: "nvda", name: "NVIDIA", category: "US_Satellite", target: 15, symbol: "NVDA" },
-      { id: "o", name: "Realty Income", category: "US_Satellite", target: 15, symbol: "O" },
+      { id: "o", name: "Realty Income", category: "US_Satellite", bucket: "dividend", target: 15, symbol: "O" },
       { id: "tisco", name: "TISCO", category: "Thai_Stock", target: 10, symbol: "TISCO.BK" },
       { id: "gold", name: "ทองคำ", category: "Other", target: 10, symbol: "" }] });
   }
@@ -36,6 +36,24 @@ export class Portfolio {
   }
   share(a) { const v = this.totals().value; return v > 0 ? this.value(a) / v * 100 : 0; }
   targetSum() { return this.assets.reduce((s, a) => s + a.target, 0); }
+
+  // สรุปตามกลุ่ม key = "class" (ประเภท) หรือ "bucket" (ถัง)
+  groupTotals(key) {
+    const V = this.totals().value, g = {};
+    this.assets.forEach(a => { const k = a[key]; g[k] = g[k] || { value: 0, target: 0, assets: [] }; g[k].value += this.value(a); g[k].target += a.target; g[k].assets.push(a); });
+    Object.values(g).forEach(x => { x.share = V > 0 ? x.value / V * 100 : 0; });
+    return g;
+  }
+  // ปรับเป้าทั้งประเภท: กระจายลงตัวย่อยตามสัดส่วนเดิม (ถ้าทุกตัวเป็น 0 ให้เท่ากัน)
+  setClassTarget(cls, pct) {
+    const list = this.assets.filter(a => a.class === cls);
+    if (!list.length) return;
+    const cur = list.reduce((s, a) => s + a.target, 0);
+    list.forEach(a => { a.target = +(cur > 0 ? a.target / cur * pct : pct / list.length).toFixed(2); });
+  }
+  daysTo(a) { return a.maturity ? Math.ceil((new Date(a.maturity + "T00:00:00") - new Date()) / 864e5) : null; }
+  isMatured(a) { const d = this.daysTo(a); return d != null && d <= 30; }
+  recentDuplicate(id, amt, date, ms) { const now = Date.now(); return this.tx.some(t => t.asset_id === id && t.amount_thb === amt && t.date === date && now - (t.created || 0) < ms); }
 
   addAsset(a) { this.assets.push(a); }
   removeAsset(id) { this.tx = this.tx.filter(t => t.asset_id !== id); this.assets = this.assets.filter(a => a.id !== id); }

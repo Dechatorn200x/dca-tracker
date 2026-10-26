@@ -8,6 +8,7 @@ export class PriceService {
     const k = q.currency === "THB" ? 1 : q.currency === "USD" ? fx : null;
     return k ? q.price * k : null;
   }
+  quoteTime(symbol) { const q = symbol && this.quotes[symbol.toUpperCase()]; return q && q.time ? q.time * 1000 : null; }
   async refresh(symbols) {
     const s = [...new Set(symbols.map(x => (x || "").toUpperCase()).filter(Boolean))];
     if (!s.length) return false;
