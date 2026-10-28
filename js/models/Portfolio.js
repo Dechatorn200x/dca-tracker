@@ -51,6 +51,8 @@ export class Portfolio {
     const cur = list.reduce((s, a) => s + a.target, 0);
     list.forEach(a => { a.target = +(cur > 0 ? a.target / cur * pct : pct / list.length).toFixed(2); });
   }
+  // ยอดที่ซื้อไปแล้วในเดือนนั้น (month = "YYYY-MM") นับจากประวัติจริง ลบรายการแล้วงบคืนเอง ขึ้นเดือนใหม่รีเซ็ตเอง
+  spentIn(month) { return this.tx.filter(t => (t.date || "").slice(0, 7) === month).reduce((s, t) => s + t.amount_thb, 0); }
   daysTo(a) { return a.maturity ? Math.ceil((new Date(a.maturity + "T00:00:00") - new Date()) / 864e5) : null; }
   isMatured(a) { const d = this.daysTo(a); return d != null && d <= 30; }
   recentDuplicate(id, amt, date, ms) { const now = Date.now(); return this.tx.some(t => t.asset_id === id && t.amount_thb === amt && t.date === date && now - (t.created || 0) < ms); }
