@@ -47,8 +47,11 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
 <div id="bk_status" class="mute" style="margin-top:6px">${this.backupStatus()}</div>
 <button class="p" style="width:100%;margin-top:10px" data-act="dl">บันทึกเป็นไฟล์สำรอง</button>
 <label>นำเข้าจากไฟล์สำรอง (.json)</label><input type="file" accept=".json,application/json" data-chg="importFile">
-<label>หรือคัดลอก/วางเป็นข้อความ</label><textarea id="bk" rows="3"></textarea>
-<div class="grid2" style="margin-top:10px"><button data-act="exp">สร้างข้อความสำรอง</button><button data-act="imp">นำเข้าจากข้อความ</button></div>
+<label>หรือคัดลอก/วางเป็นข้อความ</label>
+<div class="grid2"><button data-act="copy">คัดลอกข้อมูลสำรอง</button><button data-act="paste">วางจากคลิปบอร์ด</button></div>
+<textarea id="bk" rows="3" style="margin-top:10px" placeholder="ข้อมูลสำรองจะแสดงที่นี่ หรือวางข้อความที่เคยสำรองไว้" data-chg="bkPreview"></textarea>
+<div id="bk_msg" class="mute" style="margin-top:6px"></div>
+<button data-act="imp" style="width:100%;margin-top:10px">นำเข้าจากข้อความ</button>
 <div class="mute" style="margin-top:10px">การเก็บถาวรในเบราว์เซอร์: ${this.persistText()}</div>
 <p><button class="d" style="width:100%" data-act="reset">ล้างข้อมูลทั้งหมด</button></p></div>`;
   }
@@ -66,7 +69,8 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
       p.addAsset(new Asset({ id, name: q("#n_n").value || id.toUpperCase(), class: q("#n_cls").value, bucket: q("#n_b").value, target: +q("#n_t").value || 0, symbol: q("#n_s").value.trim().toUpperCase() }));
       app.commit(); app.refreshPrices();
     }
-    if (name === "exp") { app.markBackup(); this.refreshStatus(); const t = q("#bk"); t.value = JSON.stringify(p); t.select(); navigator.clipboard?.writeText(t.value).catch(() => {}); }
+    if (name === "copy") return this.copyBackup();
+    if (name === "paste") return this.pasteBackup();
     if (name === "imp") return this.applyBackup(q("#bk").value);
     if (name === "reset" && confirm("ล้างข้อมูลทั้งหมดและเริ่มใหม่?")) { app.setPortfolio(Portfolio.createDefault()); app.commit(); }
   }
@@ -76,6 +80,30 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
   }
   persistText() {
     return { yes: "เปิดอยู่ ✓ (เบราว์เซอร์จะไม่ลบเองตอนความจำเต็ม)", no: "เบราว์เซอร์ยังไม่อนุมัติ (ข้อมูลอาจถูกลบเมื่อความจำเต็ม จึงควรสำรองไว้)", unsupported: "เบราว์เซอร์นี้ไม่รองรับ", unknown: "กำลังตรวจสอบ" }[this.app.storage.persist];
+  }
+  say(msg) { const el = this.app.root.querySelector("#bk_msg"); if (el) el.textContent = msg; }
+  // ปุ่มคัดลอก: สร้างข้อมูลสำรอง ใส่ในช่อง และคัดลอกลงคลิปบอร์ดให้เลย
+  copyBackup() {
+    const t = this.app.root.querySelector("#bk");
+    this.app.markBackup(); this.refreshStatus();
+    t.value = JSON.stringify(this.p);
+    const manual = () => { t.focus(); t.select(); this.say("คัดลอกอัตโนมัติไม่ได้ ข้อความถูกเลือกไว้แล้ว กดค้างที่ช่องแล้วเลือก “คัดลอก”"); };
+    if (!navigator.clipboard) return manual();
+    navigator.clipboard.writeText(t.value).then(() => this.say("คัดลอกแล้ว ✓ นำไปวางในโน้ตหรือแชตตัวเอง"), manual);
+  }
+  // ปุ่มวาง: อ่านจากคลิปบอร์ดใส่ในช่อง (มือถืออาจมีป้ายถามสิทธิ์ ให้กดอนุญาต)
+  pasteBackup() {
+    const t = this.app.root.querySelector("#bk");
+    const manual = () => { t.focus(); this.say("เบราว์เซอร์ไม่ให้อ่านคลิปบอร์ดอัตโนมัติ กดค้างที่ช่องแล้วเลือก “วาง” แทน"); };
+    if (!navigator.clipboard || !navigator.clipboard.readText) return manual();
+    navigator.clipboard.readText().then(x => { t.value = x; this.say(this.previewBackup(x)); }, manual);
+  }
+  previewBackup(x) {
+    try {
+      const d = JSON.parse(x);
+      if (!d.assets || !d.tx) throw 0;
+      return `พบข้อมูลสำรอง ✓ (${d.assets.length} สินทรัพย์, ${d.tx.length} รายการซื้อ) กด “นำเข้าจากข้อความ” เพื่อใช้ข้อมูลนี้`;
+    } catch { return "ข้อความที่วางไม่ใช่ข้อมูลสำรองของแอปนี้"; }
   }
   refreshStatus() { const el = this.app.root.querySelector("#bk_status"); if (el) el.textContent = this.backupStatus(); }
   applyBackup(text) {
@@ -130,6 +158,7 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
   change(name, el) {
     const p = this.p;
     if (name === "importFile") return this.importFile(el);
+    if (name === "bkPreview") return this.say(el.value.trim() ? this.previewBackup(el.value) : "");
     if (name === "newSymbol") this.app.lookupNewSymbol(el.value.trim().toUpperCase());
     if (name === "band") { p.band = Math.max(0, +el.value || 0); this.app.commit(); }
     if (name === "classTarget") { p.setClassTarget(el.dataset.k, Math.max(0, +el.value || 0)); this.app.commit(); }
