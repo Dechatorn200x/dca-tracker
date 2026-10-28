@@ -1,5 +1,5 @@
 import { View } from "./View.js";
-import { esc } from "./format.js";
+import { esc, today } from "./format.js";
 import { Asset, CLASSES, BUCKETS } from "../models/Asset.js";
 import { Portfolio } from "../models/Portfolio.js";
 
@@ -43,14 +43,19 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
 <label>ชื่อเต็ม</label><input id="n_n">
 <div class="grid2"><div><label>ประเภท</label><select id="n_cls">${opts(CLASSES, "stock")}</select></div><div><label>ถัง</label><select id="n_b">${opts(BUCKETS, "core")}</select></div></div>
 <p><button class="p" style="width:100%" data-act="addAsset">เพิ่ม</button></p></div>
-<h2>สำรองข้อมูล</h2><div class="card"><div class="mute">ข้อมูลเก็บในเครื่องนี้ (และซิงค์ถ้าล็อกอิน) ใช้ย้ายเครื่องแบบไม่ล็อกอินได้ด้วย</div>
-<label>ข้อมูล (คัดลอก หรือวางเพื่อนำเข้า)</label><textarea id="bk" rows="4"></textarea>
-<div class="grid2" style="margin-top:10px"><button data-act="exp">สร้างข้อมูลสำรอง</button><button data-act="imp">นำเข้าข้อมูล</button></div>
+<h2 id="bk_section">สำรองข้อมูล</h2><div class="card"><div class="mute">ข้อมูลเก็บในเครื่องนี้ (และซิงค์ถ้าล็อกอิน) ควรสำรองเป็นระยะ</div>
+<div id="bk_status" class="mute" style="margin-top:6px">${this.backupStatus()}</div>
+<button class="p" style="width:100%;margin-top:10px" data-act="dl">บันทึกเป็นไฟล์สำรอง</button>
+<label>นำเข้าจากไฟล์สำรอง (.json)</label><input type="file" accept=".json,application/json" data-chg="importFile">
+<label>หรือคัดลอก/วางเป็นข้อความ</label><textarea id="bk" rows="3"></textarea>
+<div class="grid2" style="margin-top:10px"><button data-act="exp">สร้างข้อความสำรอง</button><button data-act="imp">นำเข้าจากข้อความ</button></div>
+<div class="mute" style="margin-top:10px">การเก็บถาวรในเบราว์เซอร์: ${this.persistText()}</div>
 <p><button class="d" style="width:100%" data-act="reset">ล้างข้อมูลทั้งหมด</button></p></div>`;
   }
   act(name, el) {
     const app = this.app, p = this.p, q = s => app.root.querySelector(s);
     if (name === "swap") return this.swap(el.dataset.id);
+    if (name === "dl") return this.download();
     if (name === "login") app.sync.login(el.dataset.p);
     if (name === "logout") app.sync.logout();
     if (name === "delAsset" && confirm(`ลบ ${p.asset(el.dataset.id).label} และประวัติการซื้อของตัวนี้?`)) { p.removeAsset(el.dataset.id); app.commit(); }
@@ -61,16 +66,48 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
       p.addAsset(new Asset({ id, name: q("#n_n").value || id.toUpperCase(), class: q("#n_cls").value, bucket: q("#n_b").value, target: +q("#n_t").value || 0, symbol: q("#n_s").value.trim().toUpperCase() }));
       app.commit(); app.refreshPrices();
     }
-    if (name === "exp") { const t = q("#bk"); t.value = JSON.stringify(p); t.select(); try { navigator.clipboard.writeText(t.value); } catch {} }
-    if (name === "imp") {
-      try {
-        const d = JSON.parse(q("#bk").value);
-        if (!d.assets || !d.tx) throw 0;
-        if (!confirm("แทนที่ข้อมูลปัจจุบันทั้งหมด?")) return;
-        app.setPortfolio(Portfolio.fromJSON(d)); app.commit(); app.refreshPrices();
-      } catch { alert("ข้อมูลไม่ถูกต้อง วางข้อมูลสำรองที่คัดลอกไว้"); }
-    }
+    if (name === "exp") { app.markBackup(); this.refreshStatus(); const t = q("#bk"); t.value = JSON.stringify(p); t.select(); navigator.clipboard?.writeText(t.value).catch(() => {}); }
+    if (name === "imp") return this.applyBackup(q("#bk").value);
     if (name === "reset" && confirm("ล้างข้อมูลทั้งหมดและเริ่มใหม่?")) { app.setPortfolio(Portfolio.createDefault()); app.commit(); }
+  }
+  backupStatus() {
+    const t = this.p.lastBackup;
+    return t ? `สำรองล่าสุด: ${new Date(t).toLocaleString("th-TH-u-ca-gregory", { dateStyle: "medium", timeStyle: "short" })}` : "ยังไม่เคยสำรองข้อมูล";
+  }
+  persistText() {
+    return { yes: "เปิดอยู่ ✓ (เบราว์เซอร์จะไม่ลบเองตอนความจำเต็ม)", no: "เบราว์เซอร์ยังไม่อนุมัติ (ข้อมูลอาจถูกลบเมื่อความจำเต็ม จึงควรสำรองไว้)", unsupported: "เบราว์เซอร์นี้ไม่รองรับ", unknown: "กำลังตรวจสอบ" }[this.app.storage.persist];
+  }
+  refreshStatus() { const el = this.app.root.querySelector("#bk_status"); if (el) el.textContent = this.backupStatus(); }
+  applyBackup(text) {
+    try {
+      const d = JSON.parse(text);
+      if (!d.assets || !d.tx) throw 0;
+      if (!confirm("แทนที่ข้อมูลปัจจุบันทั้งหมดด้วยข้อมูลสำรอง?")) return;
+      this.app.setPortfolio(Portfolio.fromJSON(d)); this.app.commit(); this.app.refreshPrices();
+    } catch { alert("ข้อมูลไม่ถูกต้อง ใช้ไฟล์หรือข้อความที่สร้างจากเมนู “สำรองข้อมูล” ของแอปนี้"); }
+  }
+  async importFile(el) {
+    const f = el.files && el.files[0];
+    if (!f) return;
+    try { this.applyBackup(await f.text()); } finally { el.value = ""; }
+  }
+  // มือถือ: เปิดหน้าต่างแชร์ให้เลือกบันทึกลง Files/Drive ได้  คอมพิวเตอร์: ดาวน์โหลดไฟล์ .json
+  async download() {
+    const app = this.app, prev = this.p.lastBackup;
+    app.markBackup();                      // ใส่เวลาสำรองก่อนสร้างไฟล์ ให้เวลาติดไปในไฟล์ด้วย
+    const name = `dca-backup-${today()}.json`, file = new File([JSON.stringify(this.p)], name, { type: "application/json" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });
+      else {
+        const url = URL.createObjectURL(file), a = document.createElement("a");
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      }
+      this.refreshStatus();
+    } catch (e) {
+      this.p.lastBackup = prev; app.storage.save(this.p);   // ยกเลิกหน้าต่างแชร์ = ยังไม่ถือว่าสำรอง
+      if (e.name !== "AbortError") alert("บันทึกไฟล์ไม่สำเร็จ ลองใช้ “สร้างข้อความสำรอง” แทน");
+    }
   }
   async swap(id) {
     const app = this.app, p = this.p, old = p.asset(id);
@@ -92,6 +129,7 @@ ${a.class === "bond" || a.class === "cash" ? `<label>วันครบกำห
   }
   change(name, el) {
     const p = this.p;
+    if (name === "importFile") return this.importFile(el);
     if (name === "newSymbol") this.app.lookupNewSymbol(el.value.trim().toUpperCase());
     if (name === "band") { p.band = Math.max(0, +el.value || 0); this.app.commit(); }
     if (name === "classTarget") { p.setClassTarget(el.dataset.k, Math.max(0, +el.value || 0)); this.app.commit(); }

@@ -3,11 +3,12 @@ import { Transaction } from "./Transaction.js";
 
 // เก็บสินทรัพย์ + รายการซื้อ + การตั้งค่า และคำนวณมูลค่า (ไม่ยุ่งกับ UI/เครือข่าย)
 export class Portfolio {
-  constructor({ assets = [], tx = [], budget = 10000, band = 2, updated = 0 } = {}) {
+  constructor({ assets = [], tx = [], budget = 10000, band = 2, updated = 0, lastBackup = 0 } = {}) {
     this.assets = assets.map(a => new Asset(a));
     this.tx = tx.map(t => new Transaction(t));
     this.budget = budget;
     this.band = band ?? 2;       // ช่วงยอมรับ ± % จากเป้า
+    this.lastBackup = lastBackup;   // เวลาที่สำรองข้อมูลล่าสุด (ใช้เตือนเมื่อเกิน 30 วัน)
     this.updated = updated;      // เวลาแก้ไขล่าสุด ใช้ตัดสินตอนซิงค์
     this.prices = null;          // PriceService (ไม่เก็บลงข้อมูล)
   }
@@ -20,7 +21,7 @@ export class Portfolio {
       { id: "tisco", name: "TISCO", category: "Thai_Stock", target: 10, symbol: "TISCO.BK" },
       { id: "gold", name: "ทองคำ", category: "Other", target: 10, symbol: "" }] });
   }
-  toJSON() { return { assets: this.assets, tx: this.tx, budget: this.budget, band: this.band, updated: this.updated }; }
+  toJSON() { return { assets: this.assets, tx: this.tx, budget: this.budget, band: this.band, updated: this.updated, lastBackup: this.lastBackup }; }
   touch() { this.updated = Date.now(); }
 
   asset(id) { return this.assets.find(a => a.id === id); }

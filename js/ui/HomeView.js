@@ -8,6 +8,14 @@ export class HomeView extends View {
     const s = parts.map(x => { const r = `${x.c} ${acc}% ${acc + x.v}%`; acc += x.v; return r; });
     return acc > 0 ? `conic-gradient(${s.join(",")})` : "var(--line)";
   }
+  // เตือนให้สำรองข้อมูลเมื่อยังไม่เคยสำรอง หรือเกิน 30 วัน (เฉพาะคนที่มีรายการซื้อแล้ว)
+  backupBanner() {
+    const p = this.p;
+    if (!p.tx.length) return "";
+    const days = p.lastBackup ? Math.floor((Date.now() - p.lastBackup) / 864e5) : null;
+    if (days != null && days <= 30) return "";
+    return `<div class="hint" style="margin:0 0 12px;color:var(--amber)">${days == null ? "ยังไม่เคยสำรองข้อมูล" : `สำรองข้อมูลล่าสุดเมื่อ ${days} วันที่แล้ว`} ข้อมูลอยู่ในเครื่องนี้เครื่องเดียว<br><button class="s" data-act="goBackup" style="margin-top:8px">ไปสำรองข้อมูล</button></div>`;
+  }
   groupCard(title, key, labels) {
     const e = this.engine, g = this.p.groupTotals(key);
     return `<h2>${title}</h2><div class="card">${Object.entries(g).map(([k, x]) => {
@@ -35,7 +43,7 @@ export class HomeView extends View {
     return `<h1>ภาพรวมพอร์ต</h1>
 <div class="card"><div class="mute">มูลค่ารวม (บาท)</div><div class="big">${fmt(T.value)}</div>
 <div class="row" style="margin-top:6px"><span class="mute">เงินลงทุนสะสม ${fmt(T.cost)}</span><span class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "+" : ""}${fmt(g)} (${g >= 0 ? "+" : ""}${gp.toFixed(1)}%)</span></div></div>
-${banner}
+${banner}${this.backupBanner()}
 <div class="row mute" style="margin:0 0 12px"><span>${at ? "ดึงราคาเมื่อ " + new Date(at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " · อัปเดตเองทุก 5 นาที" : "ราคาสด: ยังไม่เชื่อม (กรอกเอง)"}</span><button class="s" data-act="refresh">รีเฟรชราคา</button></div>
 <div class="card"><div class="donutwrap"><div><div class="r1" style="background:${this.grad(cur)}"><div class="r2" style="background:${this.grad(tgt)}"><div class="hole"></div></div></div>
 <div class="mute" style="text-align:center;margin-top:6px">วงนอก = ตอนนี้ · วงใน = เป้า</div></div>
@@ -52,7 +60,10 @@ ${p.isLive(a)
   : `<label>มูลค่าตอนนี้ (บาท) — กรอกเองจากแอปโบรกเกอร์</label><input type="number" inputmode="decimal" value="${Math.round(p.value(a))}" data-chg="setVal" data-id="${esc(a.id)}">`}</div>`;
 }).join("")}`;
   }
-  act(name) { if (name === "refresh") this.app.refreshPrices(true); }
+  act(name) {
+    if (name === "refresh") this.app.refreshPrices(true);
+    if (name === "goBackup") { this.app.tab = "setup"; this.app.render(); const el = this.app.root.querySelector("#bk_section"); if (el) el.scrollIntoView(); }
+  }
   change(name, el) {
     if (name === "setVal") { this.p.asset(el.dataset.id).value = Math.max(0, +el.value || 0); this.app.commit(); }
   }
